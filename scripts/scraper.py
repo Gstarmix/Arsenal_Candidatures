@@ -28,14 +28,19 @@ log = get_logger()
 FT_BASE = "https://candidat.francetravail.fr"
 FT_RECHERCHE = (FT_BASE + "/offres/recherche?lieux=35238&rayon=10"
                 "&offresPartenaires=true&motsCles=")
-# Une recherche par famille de métiers visée
+# Une recherche par famille de métiers visée (accessibles sans qualification)
 FT_MOTS_CLES = [
     "manutention",
     "préparateur de commande",
     "employé libre service",
+    "mise en rayon",
+    "caissier",
     "agent d'entretien",
+    "agent de production",
     "équipier restauration",
+    "plongeur",
     "déménagement",
+    "manœuvre",
 ]
 
 # --- lagrorecrute -----------------------------------------------------------
@@ -62,9 +67,13 @@ def _clean(texte) -> str:
 # --------------------------------------------------------------------------
 # Chargement des pages
 # --------------------------------------------------------------------------
-def _charger_pages(urls, wait_until="domcontentloaded",
-                   apres_ms=2000, scrolls=0) -> dict:
-    """Charge plusieurs URLs avec un seul navigateur. Renvoie {url: html}."""
+def _charger_pages(urls, wait_until="domcontentloaded", apres_ms=2000,
+                   scrolls=0, bouton_plus=None, clics_plus=0) -> dict:
+    """Charge plusieurs URLs avec un seul navigateur. Renvoie {url: html}.
+
+    bouton_plus / clics_plus : sélecteur d'un bouton « voir plus », cliqué
+    jusqu'à clics_plus fois pour charger les pages de résultats suivantes.
+    """
     from playwright.sync_api import sync_playwright
     resultats = {}
     with sync_playwright() as p:
@@ -77,6 +86,14 @@ def _charger_pages(urls, wait_until="domcontentloaded",
                 for _ in range(scrolls):
                     page.mouse.wheel(0, 4000)
                     page.wait_for_timeout(1100)
+                for _ in range(clics_plus):
+                    if not bouton_plus:
+                        break
+                    try:
+                        page.click(bouton_plus, timeout=5000)
+                        page.wait_for_timeout(2000)
+                    except Exception:                 # noqa: BLE001
+                        break   # plus de bouton « voir plus » : on s'arrête
                 resultats[url] = page.content()
             except Exception as e:                    # noqa: BLE001
                 log.warning("Échec de chargement (%s) : %s", url, e)
@@ -104,15 +121,25 @@ def charger_texte_offre(url: str) -> str:
 # --------------------------------------------------------------------------
 def _score(offre: dict) -> int:
     titre = offre.get("titre", "").lower()
+    contrat = offre.get("contrat", "").lower()
+    contexte = contrat + " " + titre
     score = 0
     if any(mot in titre for mot in MOTS_PRIORITAIRES):
         score += 10
     if "rennes" in offre.get("lieu", "").lower():
         score += 5
-    contexte = (offre.get("contrat", "") + " " + titre).lower()
-    if any(c in contexte for c in ("intérim", "interim", "cdd", "saison")):
+    # Type de contrat : on vise un job d'été
+    if "saison" in contexte:
+        score += 4
+    if "intérim" in contrat or "interim" in contrat:
+        score += 3
+    if "insertion" in contrat:        # CDD insertion : réinsertion, pas l'été
+        score -= 6
+    elif "cdd" in contrat:
         score += 2
-    if any(c in contexte for c in PENALITES):
+    if "cdi" in contrat:              # CDI : poste permanent, pas pour l'été
+        score -= 6
+    if any(c in contexte for c in PENALITES):   # alternance, apprentissage, stage
         score -= 8
     return score
 
@@ -150,10 +177,12 @@ def _parser_ft(html: str) -> list:
 
 
 def scraper_francetravail() -> dict:
-    """Scrape France Travail (Rennes + 10 km) sur plusieurs mots-clés."""
+    """Scrape France Travail (Rennes + 10 km), 2 pages de résultats par mot-clé."""
     urls = [FT_RECHERCHE + urllib.parse.quote(kw) for kw in FT_MOTS_CLES]
-    log.info("France Travail : %d recherches (Rennes + 10 km).", len(urls))
-    pages = _charger_pages(urls)
+    log.info("France Travail : %d recherches (Rennes + 10 km, 2 pages).",
+             len(urls))
+    pages = _charger_pages(urls, bouton_plus="text=/offres suivantes/i",
+                           clics_plus=1)
     par_id = {}
     for html in pages.values():
         for offre in _parser_ft(html):

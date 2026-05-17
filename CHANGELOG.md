@@ -2,6 +2,18 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.4.3 — Classement par type de contrat
+
+- Le score privilégie les contrats adaptés à un job d'été : saisonnier et intérim
+  remontent, le CDD reste correct, le CDI et le CDD insertion sont nettement
+  dépriorisés (visibles en bas de liste, jamais supprimés).
+
+## [2026-05-17] — v0.4.2 — Scraper France Travail élargi
+
+- 11 familles de métiers interrogées au lieu de 6.
+- 2 pages de résultats par recherche (clic automatique sur « offres suivantes »),
+  soit environ 40 offres par mot-clé au lieu de 20.
+
 ## [2026-05-17] — v0.4.1 — Intérêt et avancement séparés
 
 - Une offre porte désormais deux axes distincts : l'intérêt (intéressé / ignoré)
