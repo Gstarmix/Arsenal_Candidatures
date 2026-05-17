@@ -1,4 +1,11 @@
 # Arsenal_Candidatures — dépendances Python
-# La génération passe par le CLI `claude` (déjà installé) — aucune lib API requise.
-# La bibliothèque standard suffit pour le reste. Ce fichier reste volontairement
-# minimal ; ajoute ici toute dépendance future.
+
+# Cœur du projet (ingestion, génération, suivi) : la génération passe par le
+# CLI `claude` (déjà installé) ; le reste n'utilise que la bibliothèque standard.
+
+# Scraper d'offres (scripts/scraper.py) :
+playwright>=1.59
+beautifulsoup4>=4.12
+
+# Après installation, télécharger le navigateur du scraper :
+#   python -m playwright install chromium

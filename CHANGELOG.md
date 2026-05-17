@@ -2,6 +2,15 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.2.0 — Scraper d'offres
+
+- Ajout de `scripts/scraper.py` : scrape les offres agroalimentaire d'Ille-et-Vilaine
+  sur lagrorecrute via un navigateur headless (Playwright), les filtre et les classe
+  (postes sans qualification d'abord, alternance/stage écartés).
+- `run_candidatures.py --scraper` et lanceur `start_scraper.vbs`.
+- Sortie : `_logs/offres_lagrorecrute.md` (liste triée) + `.json`.
+- `requirements.txt` : ajout de `playwright` et `beautifulsoup4`.
+
 ## [2026-05-17] — v0.1.2 — Passage en dépôt public
 
 - Données personnelles exclues du versionnement : `profil_gaylord.json`, `photo.png`,

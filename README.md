@@ -40,7 +40,8 @@ Arsenal_Candidatures/
 ├── _logs/             Journaux horodatés
 ├── _archives/         Anciennes versions
 ├── run_candidatures.py        Orchestrateur principal
-└── start_candidatures.vbs     Lanceur silencieux (double-clic)
+├── start_candidatures.vbs     Lanceur du traitement (double-clic)
+└── start_scraper.vbs          Lanceur du scraper d'offres (double-clic)
 ```
 
 ## Le flux complet
@@ -83,6 +84,9 @@ XeLaTeX (MiKTeX) est requis pour compiler les PDF.
 
 - Lancer un traitement : double-clic sur `start_candidatures.vbs`
   (ou `python run_candidatures.py`).
+- Chercher des offres (lagrorecrute) : double-clic sur `start_scraper.vbs`
+  (ou `python run_candidatures.py --scraper`). La liste triée est écrite dans
+  `_logs/offres_lagrorecrute.md`.
 - Voir l'état des candidatures : ouvre `_logs/tableau_de_bord.md`.
 - Marquer une candidature comme envoyée :
   `python run_candidatures.py --envoyee <id_offre>`.
