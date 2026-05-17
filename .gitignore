@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets et données personnelles (jamais versionnés — dépôt public)
+.env
+datas/*secret*
+datas/profil_gaylord.json
+datas/photo.png
+datas/suivi_candidatures.json
+
+# Journaux et tableau de bord (gardés localement, pas versionnés)
+_logs/*
+!_logs/.gitkeep
+
+# Fichiers intermédiaires LaTeX
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Système
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Contenu généré par le pipeline (gardé localement, pas versionné)
+00_inbox_json/*
+01_offres/*
+02_cv_generes/*
+03_lettres/*
+04_envoyes/*
+_archives/*
+!00_inbox_json/.gitkeep
+!01_offres/.gitkeep
+!02_cv_generes/.gitkeep
+!03_lettres/.gitkeep
+!04_envoyes/.gitkeep
+!_archives/.gitkeep

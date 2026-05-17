@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Arsenal_Candidatures — orchestrateur principal.
+
+Usage :
+    python run_candidatures.py               traite les nouvelles offres
+    python run_candidatures.py --suivi       régénère seulement le tableau de bord
+    python run_candidatures.py --envoyee ID  marque une candidature comme envoyée
+"""
+import argparse
+import shutil
+import sys
+from pathlib import Path
+
+# Rend le package `scripts` importable quel que soit le dossier d'appel.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from scripts import ingest, generate, suivi          # noqa: E402
+from scripts.config import ARCHIVES                  # noqa: E402
+from scripts.logger_setup import get_logger          # noqa: E402
+
+log = get_logger()
+
+
+def traiter() -> None:
+    """Ingestion + génération + suivi pour toutes les nouvelles offres."""
+    fichiers = ingest.collecter_inbox()
+    if not fichiers:
+        log.info("Aucune offre à traiter dans l'inbox.")
+        suivi.generer_tableau_de_bord()
+        return
+
+    log.info("%d offre(s) à traiter.", len(fichiers))
+    ARCHIVES.mkdir(parents=True, exist_ok=True)
+    ok, echecs = 0, 0
+
+    for fichier in fichiers:
+        offre = ingest.charger_offre(fichier)
+        if not offre:
+            echecs += 1
+            continue
+        try:
+            oid, dossier = ingest.creer_dossier_offre(offre)
+            resultat = generate.generer(offre, oid, dossier)
+            suivi.ajouter(oid, offre, resultat)
+            dest = ARCHIVES / fichier.name
+            if dest.exists():
+                dest = ARCHIVES / f"{fichier.stem}_{oid}{fichier.suffix}"
+            shutil.move(str(fichier), str(dest))
+            log.info("Candidature prête : %s", oid)
+            ok += 1
+        except Exception as e:                       # noqa: BLE001
+            log.error("Échec sur %s : %s", fichier.name, e)
+            echecs += 1
+
+    suivi.generer_tableau_de_bord()
+    log.info("Terminé — %d réussie(s), %d échec(s).", ok, echecs)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Arsenal_Candidatures")
+    parser.add_argument("--suivi", action="store_true",
+                        help="régénère seulement le tableau de bord")
+    parser.add_argument("--envoyee", metavar="ID",
+                        help="marque une candidature comme envoyée")
+    args = parser.parse_args()
+
+    if args.envoyee:
+        ok = suivi.marquer_envoyee(args.envoyee)
+        suivi.generer_tableau_de_bord()
+        sys.exit(0 if ok else 1)
+
+    if args.suivi:
+        suivi.generer_tableau_de_bord()
+        return
+
+    traiter()
+
+
+if __name__ == "__main__":
+    main()

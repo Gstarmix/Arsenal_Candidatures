@@ -1,0 +1,4 @@
+# Arsenal_Candidatures — dépendances Python
+# La génération passe par le CLI `claude` (déjà installé) — aucune lib API requise.
+# La bibliothèque standard suffit pour le reste. Ce fichier reste volontairement
+# minimal ; ajoute ici toute dépendance future.
