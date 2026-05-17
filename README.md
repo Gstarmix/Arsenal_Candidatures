@@ -1,15 +1,14 @@
 # Arsenal_Candidatures
 
-Outil personnel de **génération de candidatures ciblées** pour Gaylord ABOEKA.
+Outil personnel de **recherche d'emploi et de génération de candidatures ciblées**
+pour Gaylord ABOEKA.
 
-Tu navigues sur une offre d'emploi → tu cliques sur l'extension → elle capture la page
-dans un JSON → l'outil génère un **CV** et une **lettre de motivation** adaptés à cette
-offre, puis enregistre la candidature dans un **fichier de suivi avec rappels de
-relance**.
+Le logiciel scrape les offres d'emploi, les rassemble dans un tableau de bord
+(interface graphique), et génère pour chacune un **CV** et une **lettre de
+motivation** adaptés, tout en suivant l'état de chaque candidature.
 
-> Projet calqué sur l'écosystème `BotGSTAR/Arsenal_Arguments` : dossiers de pipeline
-> numérotés, `datas/`, `extension/`, `_logs/`, génération via le CLI `claude --print`
-> (abonnement, pas d'API payante).
+> Génération via le CLI `claude --print` (abonnement, pas d'API payante). Projet
+> calqué sur l'écosystème `BotGSTAR/Arsenal_Arguments`.
 
 ---
 
@@ -36,7 +35,7 @@ Arsenal_Candidatures/
 │   ├── offres.json             Magasin des offres et de leur statut
 │   └── suivi_candidatures.json Suivi central de toutes les candidatures
 ├── templates/         Gabarits LaTeX (CV + lettre)
-├── scripts/           Code Python (ingest, génération, suivi)
+├── scripts/           Code Python (scraper, génération, suivi, magasin d'offres)
 ├── extension/         Extension Chrome/Edge de capture d'offres
 ├── _logs/             Journaux horodatés
 ├── _archives/         Anciennes versions
@@ -49,16 +48,18 @@ Arsenal_Candidatures/
 
 ## Le flux complet
 
-1. **Capture** — Sur une offre (HelloWork, Indeed, France Travail, LinkedIn…), clique
-   sur l'extension *Arsenal Candidatures*. Elle télécharge un `offre_*.json`.
-2. **Ingestion** — `run_candidatures.py` récupère les JSON (depuis `00_inbox_json/` et
-   le dossier Téléchargements), et crée un dossier d'offre dans `01_offres/`.
-3. **Génération** — Pour chaque offre, l'outil appelle `claude --print` avec ton profil
-   + l'offre + les gabarits, récupère un CV et une lettre ciblés, et les compile en PDF.
-4. **Suivi** — La candidature est ajoutée à `datas/suivi_candidatures.json` au statut
-   `à_envoyer`, avec une date de relance (J+7).
-5. **Tableau de bord** — `_logs/tableau_de_bord.md` est régénéré : candidatures en
-   cours, à relancer aujourd'hui, sans réponse depuis trop longtemps.
+1. **Collecte** — Le scraper interroge France Travail (Rennes + 10 km) ou
+   lagrorecrute et remplit le magasin d'offres `datas/offres.json`. On peut aussi
+   capturer une offre précise avec l'extension navigateur.
+2. **Tri** — Dans l'interface (`gui.py`), toutes les offres s'affichent dans un
+   tableau ; on marque celles qui intéressent, on ignore les autres.
+3. **Génération** — Pour une offre retenue, l'outil appelle `claude --print` avec le
+   profil et l'offre, produit un CV et une lettre ciblés (PDF + texte) et les compile.
+4. **Suivi** — L'offre passe au statut « CV généré », puis « Envoyé » une fois la
+   candidature faite. `datas/suivi_candidatures.json` garde les dates et les rappels
+   de relance (J+7).
+5. **Tableau de bord** — `_logs/tableau_de_bord.md` liste les candidatures en cours,
+   à relancer aujourd'hui, et sans réponse depuis trop longtemps.
 
 ## Installation
 
