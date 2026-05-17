@@ -62,8 +62,9 @@ def main() -> None:
                         help="régénère seulement le tableau de bord")
     parser.add_argument("--envoyee", metavar="ID",
                         help="marque une candidature comme envoyée")
-    parser.add_argument("--scraper", action="store_true",
-                        help="scrape lagrorecrute et écrit la liste triée des offres")
+    parser.add_argument("--scraper", nargs="?", const="francetravail",
+                        choices=["francetravail", "lagrorecrute"], metavar="SOURCE",
+                        help="scrape les offres (francetravail par défaut, ou lagrorecrute)")
     args = parser.parse_args()
 
     if args.envoyee:
@@ -74,9 +75,8 @@ def main() -> None:
     if args.scraper:
         from scripts import scraper as scraper_module
         try:
-            res = scraper_module.scraper()
-            log.info("Scraper terminé : %d offre(s) — voir "
-                     "_logs/offres_lagrorecrute.md", res["total"])
+            res = scraper_module.scraper(args.scraper)
+            log.info("Scraper terminé : %d offre(s) trouvée(s).", res["total"])
         except Exception as e:                       # noqa: BLE001
             log.error("Scraper échoué : %s", e)
             sys.exit(1)

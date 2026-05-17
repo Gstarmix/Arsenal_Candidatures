@@ -17,7 +17,7 @@ WshShell.CurrentDirectory = scriptDir
 WshShell.Run """" & python & """ """ & scriptDir & "\run_candidatures.py"" --scraper", 1, True
 
 ' Ouvre la liste triee des offres
-liste = scriptDir & "\_logs\offres_lagrorecrute.md"
+liste = scriptDir & "\_logs\offres_francetravail.md"
 If fso.FileExists(liste) Then
     WshShell.Run "notepad """ & liste & """", 1, False
 End If

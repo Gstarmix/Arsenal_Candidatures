@@ -2,6 +2,13 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.3.0 — Scraper France Travail
+
+- `scripts/scraper.py` étendu : scraper France Travail (Rennes + 10 km, 6 familles
+  de métiers, déduplication des offres). Devient la source par défaut de `--scraper`.
+- lagrorecrute conservé en option : `python run_candidatures.py --scraper lagrorecrute`.
+- Sortie par défaut : `_logs/offres_francetravail.md`.
+
 ## [2026-05-17] — v0.2.0 — Scraper d'offres
 
 - Ajout de `scripts/scraper.py` : scrape les offres agroalimentaire d'Ille-et-Vilaine

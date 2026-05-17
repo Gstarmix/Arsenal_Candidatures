@@ -84,9 +84,10 @@ XeLaTeX (MiKTeX) est requis pour compiler les PDF.
 
 - Lancer un traitement : double-clic sur `start_candidatures.vbs`
   (ou `python run_candidatures.py`).
-- Chercher des offres (lagrorecrute) : double-clic sur `start_scraper.vbs`
-  (ou `python run_candidatures.py --scraper`). La liste triée est écrite dans
-  `_logs/offres_lagrorecrute.md`.
+- Chercher des offres : double-clic sur `start_scraper.vbs` (ou
+  `python run_candidatures.py --scraper`). Par défaut : France Travail,
+  Rennes + 10 km → `_logs/offres_francetravail.md`. Variante agroalimentaire :
+  `python run_candidatures.py --scraper lagrorecrute`.
 - Voir l'état des candidatures : ouvre `_logs/tableau_de_bord.md`.
 - Marquer une candidature comme envoyée :
   `python run_candidatures.py --envoyee <id_offre>`.
