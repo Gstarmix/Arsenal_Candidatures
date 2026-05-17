@@ -33,13 +33,16 @@ Arsenal_Candidatures/
 ├── 04_envoyes/        Candidatures réellement envoyées (archivage)
 ├── datas/
 │   ├── profil_gaylord.json     SOURCE DE VÉRITÉ — à tenir à jour
+│   ├── offres.json             Magasin des offres et de leur statut
 │   └── suivi_candidatures.json Suivi central de toutes les candidatures
 ├── templates/         Gabarits LaTeX (CV + lettre)
 ├── scripts/           Code Python (ingest, génération, suivi)
 ├── extension/         Extension Chrome/Edge de capture d'offres
 ├── _logs/             Journaux horodatés
 ├── _archives/         Anciennes versions
-├── run_candidatures.py        Orchestrateur principal
+├── gui.py                     Interface graphique (application principale)
+├── run_candidatures.py        Orchestrateur en ligne de commande
+├── start_gui.vbs              Lanceur de l'interface graphique (double-clic)
 ├── start_candidatures.vbs     Lanceur du traitement (double-clic)
 └── start_scraper.vbs          Lanceur du scraper d'offres (double-clic)
 ```
@@ -81,6 +84,15 @@ XeLaTeX (MiKTeX) est requis pour compiler les PDF.
 4. L'icône *Arsenal Candidatures* apparaît dans la barre d'outils.
 
 ## Utilisation
+
+### Interface graphique (recommandé)
+
+Double-clic sur **`start_gui.vbs`** (ou `python gui.py`). Tout se pilote depuis
+cette fenêtre : scraper les offres, marquer celles qui intéressent, générer le
+CV + la lettre (à l'unité ou en lot pour toutes les offres « Intéressé »), ouvrir
+les fichiers produits et suivre les candidatures envoyées.
+
+### En ligne de commande
 
 - Lancer un traitement : double-clic sur `start_candidatures.vbs`
   (ou `python run_candidatures.py`).

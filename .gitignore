@@ -10,6 +10,7 @@ datas/*secret*
 datas/profil_gaylord.json
 datas/photo.png
 datas/suivi_candidatures.json
+datas/offres.json
 
 # Journaux et tableau de bord (gardés localement, pas versionnés)
 _logs/*

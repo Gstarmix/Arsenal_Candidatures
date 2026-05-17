@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 
 from scripts.config import LOGS
 from scripts.logger_setup import get_logger
+from scripts import offres_store
 
 log = get_logger()
 
@@ -82,6 +83,20 @@ def _charger_pages(urls, wait_until="domcontentloaded",
                 resultats[url] = ""
         navigateur.close()
     return resultats
+
+
+def charger_texte_offre(url: str) -> str:
+    """Renvoie le texte visible d'une page d'offre (pour la génération du CV)."""
+    if not url:
+        return ""
+    try:
+        html = _charger_pages([url]).get(url, "")
+        if not html:
+            return ""
+        return _clean(BeautifulSoup(html, "html.parser").get_text(" "))[:8000]
+    except Exception as e:                            # noqa: BLE001
+        log.warning("Texte d'offre non récupéré (%s) : %s", url, e)
+        return ""
 
 
 # --------------------------------------------------------------------------
@@ -150,6 +165,7 @@ def scraper_francetravail() -> dict:
     log.info("France Travail : %d offre(s) uniques.", len(offres))
     _ecrire("France Travail — Rennes et environs (10 km)",
             "offres_francetravail", offres)
+    offres_store.fusionner(offres, "francetravail")
     return {"total": len(offres), "offres": offres}
 
 
@@ -191,6 +207,7 @@ def scraper_lagrorecrute() -> dict:
     log.info("lagrorecrute : %d offre(s).", len(offres))
     _ecrire("lagrorecrute — agroalimentaire Ille-et-Vilaine",
             "offres_lagrorecrute", offres)
+    offres_store.fusionner(offres, "lagrorecrute")
     return {"total": len(offres), "offres": offres}
 
 

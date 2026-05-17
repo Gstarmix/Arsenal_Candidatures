@@ -18,7 +18,7 @@
     {
       "intitule": "Intitulé du diplôme ou de la formation",
       "etablissement": "Établissement",
-      "periode": "20XX – 20XX",
+      "periode": "20XX - 20XX",
       "details": "Description courte (contenu, mention, statut)."
     }
   ],
@@ -26,7 +26,7 @@
     {
       "poste": "Intitulé du poste",
       "structure": "Employeur",
-      "periode": "20XX – 20XX",
+      "periode": "20XX - 20XX",
       "details": "Description concrète des missions réalisées.",
       "type": "emploi"
     }

@@ -26,9 +26,40 @@ _TEX = {
 }
 
 
+# Signes typographiques qui trahissent un texte généré par IA.
+# Ils sont remplacés par leur équivalent clavier dans tout texte produit.
+_MARQUEURS = {
+    "—": "-", "–": "-", "―": "-", "−": "-",  # tirets longs
+    "…": "...",                                             # points de suspension
+    "‘": "'", "’": "'",                                # apostrophes courbes
+    "“": '"', "”": '"',                                # guillemets courbes
+    "•": "-",                                               # puce
+    " ": " ", " ": " ", " ": " ",                 # espaces spéciales
+}
+
+
+def _nettoyer_marqueurs(texte) -> str:
+    """Retire les signes typographiques typiques d'un texte généré par IA."""
+    texte = str(texte or "")
+    for marqueur, remplacement in _MARQUEURS.items():
+        texte = texte.replace(marqueur, remplacement)
+    return texte
+
+
+def _assainir(obj):
+    """Applique _nettoyer_marqueurs à toutes les chaînes d'une structure."""
+    if isinstance(obj, str):
+        return _nettoyer_marqueurs(obj)
+    if isinstance(obj, list):
+        return [_assainir(x) for x in obj]
+    if isinstance(obj, dict):
+        return {cle: _assainir(val) for cle, val in obj.items()}
+    return obj
+
+
 def tex(value) -> str:
-    """Échappe une chaîne pour une insertion sûre dans du LaTeX."""
-    return "".join(_TEX.get(ch, ch) for ch in str(value or ""))
+    """Nettoie les marqueurs d'IA puis échappe la chaîne pour LaTeX."""
+    return "".join(_TEX.get(ch, ch) for ch in _nettoyer_marqueurs(value))
 
 
 def _profil() -> dict:
@@ -52,6 +83,13 @@ jamais une expérience, une compétence, une date ou un diplôme. Tu peux reform
 et choisir quoi mettre en avant ; jamais inventer. La lettre doit rester sobre,
 concrète et honnête.
 
+STYLE : rédige dans un français fluide et soigné, en reliant les idées par des
+connecteurs logiques (ainsi, par ailleurs, en effet, de plus, c'est pourquoi,
+dès lors). Reste naturel et sincère, sans tournures grandiloquentes ni mots
+rares. N'utilise JAMAIS de tiret cadratin (—) ni de tiret demi-cadratin (–) :
+emploie une virgule, un point ou un tiret simple (-). Pas de guillemets ni
+d'apostrophes courbes, pas de points de suspension unicode.
+
 Réponds UNIQUEMENT par un objet JSON valide (aucun autre texte, pas de balises de
 code), de cette forme exacte :
 {{
@@ -73,6 +111,41 @@ def _extraire_json(reponse: str) -> dict:
     if start == -1 or end == -1:
         raise ValueError("Aucun JSON exploitable dans la réponse de claude.")
     return json.loads(txt[start:end + 1])
+
+
+def _contient_tiret_cadratin(obj) -> bool:
+    """Vrai si la structure contient un tiret cadratin (—) ou demi-cadratin (–)."""
+    if isinstance(obj, str):
+        return "—" in obj or "–" in obj
+    if isinstance(obj, list):
+        return any(_contient_tiret_cadratin(x) for x in obj)
+    if isinstance(obj, dict):
+        return any(_contient_tiret_cadratin(v) for v in obj.values())
+    return False
+
+
+def _reformuler_sans_tiret(plan: dict) -> dict:
+    """Si le texte généré contient un tiret cadratin, on demande à claude de
+    REFORMULER la phrase (et non de remplacer le tiret par un autre signe :
+    en français, personne n'écrit ça)."""
+    if not _contient_tiret_cadratin(plan):
+        return plan
+    log.info("Tiret cadratin détecté : demande de reformulation à claude.")
+    demande = (
+        "Le JSON ci-dessous contient un ou plusieurs tirets cadratins (—) ou "
+        "demi-cadratins (–). Réécris-le en REFORMULANT les phrases concernées "
+        "dans un français naturel et fluide, sans aucun de ces tirets, et sans "
+        "te contenter de les remplacer par un autre signe. Conserve le sens et "
+        "exactement la même structure JSON. Réponds uniquement par le JSON "
+        "corrigé.\n\n" + json.dumps(plan, ensure_ascii=False, indent=2)
+    )
+    try:
+        corrige = _extraire_json(call_claude(demande))
+        if isinstance(corrige, dict) and corrige:
+            return corrige
+    except Exception as e:                            # noqa: BLE001
+        log.warning("Reformulation impossible (%s).", e)
+    return plan
 
 
 def _bloc_experiences(profil: dict, ordre) -> str:
@@ -182,7 +255,7 @@ def _rendre_lettre_txt(profil: dict, offre: dict, plan: dict) -> str:
     lignes.append("Je vous prie d'agréer, Madame, Monsieur, l'expression de "
                   "mes salutations distinguées.")
     lignes += ["", nom]
-    return "\n".join(lignes) + "\n"
+    return _nettoyer_marqueurs("\n".join(lignes)) + "\n"
 
 
 def _compiler(tex_path: Path):
@@ -214,6 +287,8 @@ def generer(offre: dict, oid: str, dossier_offre: Path) -> dict:
     log.info("Génération de la candidature : %s", oid)
 
     plan = _extraire_json(call_claude(_prompt(profil, offre)))
+    plan = _reformuler_sans_tiret(plan)      # reformule si tiret cadratin
+    plan = _assainir(plan)                   # filet de sécurité (marqueurs)
     (dossier_offre / "plan.json").write_text(
         json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
 

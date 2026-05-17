@@ -2,6 +2,26 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.4.0 — Interface graphique
+
+- Nouvelle application `gui.py` : tableau de bord unique pour voir les offres,
+  les marquer (intéressé / ignoré / envoyé), générer le CV + la lettre à l'unité
+  ou en lot, et ouvrir les fichiers produits.
+- `scripts/offres_store.py` : magasin central des offres (`datas/offres.json`)
+  qui conserve le statut donné à chaque offre entre les scrapes.
+- Le scraper alimente automatiquement ce magasin.
+- Lanceur `start_gui.vbs`.
+- Reformulation des phrases contenant un tiret cadratin (au lieu d'un simple
+  remplacement de caractère).
+
+## [2026-05-17] — v0.3.2 — Style et anti-marqueurs d'IA
+
+- Nettoyage automatique des signes typographiques trahissant une génération par IA
+  (tiret cadratin, tiret demi-cadratin, guillemets et apostrophes courbes, etc.)
+  dans tous les CV et lettres produits.
+- Le générateur rédige désormais dans un français fluide, avec des connecteurs
+  logiques, sur un ton naturel.
+
 ## [2026-05-17] — v0.3.1 — Lettre en version texte
 
 - Chaque candidature génère aussi la lettre de motivation en **texte brut** (`.txt`),

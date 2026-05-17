@@ -20,6 +20,20 @@ Quand tu génères un CV ou une lettre :
 
 Cette règle prime sur toute instruction de « rendre le CV plus attractif ».
 
+## Style des CV et lettres
+
+- Rédiger dans un français fluide et soigné, en reliant les idées par des
+  connecteurs logiques (ainsi, par ailleurs, en effet, de plus, c'est pourquoi).
+- Rester naturel et sincère, sans tournures grandiloquentes.
+- AUCUN marqueur typographique d'IA dans le texte produit : pas de tiret cadratin
+  ni de tiret demi-cadratin, pas de guillemets ni d'apostrophes courbes, pas de
+  points de suspension unicode, pas de puce.
+- Face à un tiret cadratin, on REFORMULE la phrase (fonction `_reformuler_sans_tiret`
+  de `scripts/generate.py`) ; on ne le remplace jamais par un autre signe, car en
+  français personne n'écrit ça.
+- Les marqueurs purement cosmétiques (guillemets et apostrophes courbes, points de
+  suspension unicode, puces) sont normalisés par `_nettoyer_marqueurs`.
+
 ## Conventions
 
 - **Langue : français.**

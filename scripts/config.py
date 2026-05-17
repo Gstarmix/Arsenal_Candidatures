@@ -17,6 +17,7 @@ ARCHIVES = ROOT / "_archives"
 PROFIL_PATH = DATAS / "profil_gaylord.json"
 SUIVI_PATH = DATAS / "suivi_candidatures.json"
 PHOTO_PATH = DATAS / "photo.png"
+OFFRES_STORE = DATAS / "offres.json"
 DASHBOARD_PATH = LOGS / "tableau_de_bord.md"
 
 CV_TEMPLATE = TEMPLATES / "cv_template.tex"
