@@ -2,6 +2,11 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.3.1 — Lettre en version texte
+
+- Chaque candidature génère aussi la lettre de motivation en **texte brut** (`.txt`),
+  à coller directement dans les formulaires en ligne (zones de texte).
+
 ## [2026-05-17] — v0.3.0 — Scraper France Travail
 
 - `scripts/scraper.py` étendu : scraper France Travail (Rennes + 10 km, 6 familles

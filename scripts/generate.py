@@ -157,6 +157,34 @@ def _rendre_lettre(profil: dict, offre: dict, plan: dict) -> str:
     })
 
 
+def _rendre_lettre_txt(profil: dict, offre: dict, plan: dict) -> str:
+    """Version texte brut de la lettre — à coller dans un formulaire en ligne."""
+    ident = profil.get("identite", {})
+    nom = f"{ident.get('prenom', '')} {ident.get('nom', '')}".strip()
+    ville = (ident.get("ville", "") or "").split("(")[0].strip() or "Rennes"
+
+    lignes = [nom]
+    for champ in (ident.get("ville"), ident.get("telephone"),
+                  ident.get("email")):
+        if champ:
+            lignes.append(champ)
+    lignes.append("")
+    lignes.append(offre.get("entreprise") or "Service recrutement")
+    if offre.get("lieu"):
+        lignes.append(offre["lieu"])
+    lignes += ["",
+               f"{ville}, le {datetime.now():%d/%m/%Y}", "",
+               f"Objet : {plan.get('lettre_objet', 'Candidature')}", "",
+               "Madame, Monsieur,", ""]
+    for paragraphe in plan.get("lettre_paragraphes", []):
+        lignes.append(str(paragraphe).strip())
+        lignes.append("")
+    lignes.append("Je vous prie d'agréer, Madame, Monsieur, l'expression de "
+                  "mes salutations distinguées.")
+    lignes += ["", nom]
+    return "\n".join(lignes) + "\n"
+
+
 def _compiler(tex_path: Path):
     """Compile un .tex avec XeLaTeX. Renvoie le chemin du PDF ou None."""
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -203,10 +231,15 @@ def generer(offre: dict, oid: str, dossier_offre: Path) -> dict:
     lettre_tex.write_text(_rendre_lettre(profil, offre, plan), encoding="utf-8")
     lettre_pdf = _compiler(lettre_tex)
 
+    lettre_txt = lettre_dir / f"LM_{oid}.txt"
+    lettre_txt.write_text(_rendre_lettre_txt(profil, offre, plan),
+                          encoding="utf-8")
+
     return {
         "titre_cv": plan.get("titre_cv", ""),
         "cv_tex": str(cv_tex),
         "cv_pdf": str(cv_pdf) if cv_pdf else None,
         "lettre_tex": str(lettre_tex),
         "lettre_pdf": str(lettre_pdf) if lettre_pdf else None,
+        "lettre_txt": str(lettre_txt),
     }

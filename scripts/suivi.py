@@ -50,6 +50,7 @@ def ajouter(oid: str, offre: dict, resultat: dict) -> None:
         "date_relance_prevue": (today + timedelta(days=RELANCE_JOURS)).isoformat(),
         "cv_pdf": resultat.get("cv_pdf"),
         "lettre_pdf": resultat.get("lettre_pdf"),
+        "lettre_txt": resultat.get("lettre_txt"),
         "notes": "",
     })
     _sauver(data)
@@ -115,7 +116,8 @@ def generer_tableau_de_bord() -> None:
     section("✉️ À envoyer", a_envoyer, lambda c:
             f"- **{c['entreprise']}** — {c['titre']}\n"
             f"  - CV : `{c.get('cv_pdf') or '—'}`\n"
-            f"  - Lettre : `{c.get('lettre_pdf') or '—'}`")
+            f"  - Lettre PDF : `{c.get('lettre_pdf') or '—'}`\n"
+            f"  - Lettre texte : `{c.get('lettre_txt') or '—'}`")
     section("⏳ En cours", en_cours, lambda c:
             f"- **{c['entreprise']}** — {c['titre']} "
             f"(statut : {c['statut']}, relance prévue : "
