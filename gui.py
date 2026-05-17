@@ -4,6 +4,11 @@
 Tableau de bord unique : voir les offres scrapées, marquer celles qui
 intéressent, générer le CV + la lettre, suivre les candidatures envoyées.
 
+Deux axes indépendants par offre :
+  - intérêt    : marqué par l'utilisateur (intéressé / ignoré)
+  - avancement : état du dossier (CV généré / envoyé)
+Le statut affiché est déduit des deux.
+
 Lancement : double-clic sur start_gui.vbs (ou `python gui.py`).
 """
 import os
@@ -18,7 +23,7 @@ from tkinter import ttk, messagebox
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from scripts import offres_store, scraper, generate, ingest, suivi  # noqa: E402
-from scripts.offres_store import LIBELLES, STATUTS                  # noqa: E402
+from scripts.offres_store import LIBELLES, STATUTS, statut_derive    # noqa: E402
 from scripts.logger_setup import get_logger                         # noqa: E402
 
 log = get_logger()
@@ -36,7 +41,7 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.occupe = False
-        self.offres_affichees = []   # offres actuellement dans le tableau
+        self.offres_affichees = []
         root.title("Arsenal Candidatures")
         root.geometry("1120x660")
         root.minsize(900, 500)
@@ -94,10 +99,10 @@ class App:
 
         self.boutons = {}
         actions = [
-            ("interesse", "Intéressé", lambda: self._marquer("interesse")),
-            ("ignore", "Ignorer", lambda: self._marquer("ignore")),
+            ("interesse", "Intéressé", lambda: self._definir_interet("interesse")),
+            ("ignore", "Ignorer", lambda: self._definir_interet("ignore")),
             ("generer", "Générer CV + lettre", self._generer_selection),
-            ("envoye", "Marquer envoyé", lambda: self._marquer("envoye")),
+            ("envoye", "Marquer envoyé", lambda: self._definir_avancement("envoye")),
             ("url", "Ouvrir l'offre", lambda: self._ouvrir("url")),
             ("cv_pdf", "Ouvrir CV", lambda: self._ouvrir("cv_pdf")),
             ("lettre_pdf", "Ouvrir lettre PDF", lambda: self._ouvrir("lettre_pdf")),
@@ -108,7 +113,7 @@ class App:
             bouton.grid(row=1, column=i, padx=2, sticky="ew")
             self.boutons[cle] = bouton
 
-        self.btn_lot = ttk.Button(bas, text="Générer pour tous les « Intéressé »",
+        self.btn_lot = ttk.Button(bas, text="Générer pour les « Intéressé » sans CV",
                                   command=self._generer_interesses)
         self.btn_lot.grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
@@ -131,7 +136,7 @@ class App:
         statut_filtre = next((s for s in STATUTS if LIBELLES[s] == libelle), None)
         self.offres_affichees = [o for o in toutes
                                  if statut_filtre is None
-                                 or o.get("statut") == statut_filtre]
+                                 or statut_derive(o) == statut_filtre]
         self.offres_affichees.sort(key=lambda o: o.get("score", 0), reverse=True)
 
         self.tree.delete(*self.tree.get_children())
@@ -139,7 +144,7 @@ class App:
             cle = offre.get("cle")
             if not cle:
                 continue
-            statut = offre.get("statut", "nouveau")
+            statut = statut_derive(offre)
             self.tree.insert("", "end", iid=cle, tags=(statut,), values=(
                 LIBELLES.get(statut, statut),
                 offre.get("titre", ""),
@@ -151,7 +156,7 @@ class App:
 
         counts = {s: 0 for s in STATUTS}
         for o in toutes:
-            counts[o.get("statut", "nouveau")] = counts.get(o.get("statut"), 0) + 1
+            counts[statut_derive(o)] += 1
         self.lbl_compte.config(text=f"{len(toutes)} offres   |   " + "   ".join(
             f"{LIBELLES[s]}: {counts[s]}" for s in STATUTS))
         self._sur_selection()
@@ -188,11 +193,17 @@ class App:
             self.lbl_sel.config(text="Aucune offre sélectionnée.")
 
     # --------------------------------------------------------------- actions
-    def _marquer(self, statut: str) -> None:
+    def _definir_interet(self, valeur: str) -> None:
         for cle in self._selection():
-            offres_store.maj_offre(cle, statut=statut)
+            offres_store.maj_offre(cle, interet=valeur)
         self.rafraichir()
-        self.barre.config(text=f"Statut mis à jour : {LIBELLES[statut]}.")
+        self.barre.config(text=f"Intérêt mis à jour : {LIBELLES.get(valeur, valeur)}.")
+
+    def _definir_avancement(self, valeur: str) -> None:
+        for cle in self._selection():
+            offres_store.maj_offre(cle, avancement=valeur)
+        self.rafraichir()
+        self.barre.config(text="Avancement mis à jour.")
 
     def _ouvrir(self, champ: str) -> None:
         sel = self._selection()
@@ -245,14 +256,36 @@ class App:
         threading.Thread(target=tache, daemon=True).start()
 
     def _generer_selection(self) -> None:
-        self._lancer_generation(self._selection())
+        sel = self._selection()
+        if not sel:
+            return
+        deja = [c for c in sel
+                if (self._offre_par_cle(c) or {}).get("cv_pdf")]
+        a_generer = [c for c in sel if c not in deja]
+        if deja:
+            if len(deja) == len(sel):
+                question = ("Le CV de cette offre a déjà été généré et l'offre "
+                            "n'a pas changé. Le régénérer quand même ?")
+            else:
+                question = (f"{len(deja)} offre(s) sur {len(sel)} ont déjà un CV "
+                            "généré.\n\nOui : tout régénérer.\nNon : ne générer "
+                            "que les offres sans CV.")
+            reponse = messagebox.askyesnocancel("Génération", question)
+            if reponse is None:
+                return
+            if reponse:
+                a_generer = sel
+        if not a_generer:
+            self.barre.config(text="Rien à générer : CV déjà existant(s).")
+            return
+        self._lancer_generation(a_generer)
 
     def _generer_interesses(self) -> None:
         cles = [o["cle"] for o in offres_store.charger().get("offres", [])
-                if o.get("statut") == "interesse"]
+                if o.get("interet") == "interesse" and not o.get("cv_pdf")]
         if not cles:
             messagebox.showinfo("Génération en lot",
-                                "Aucune offre au statut « Intéressé ».")
+                                "Aucune offre « Intéressé » sans CV à générer.")
             return
         if messagebox.askyesno("Génération en lot",
                                f"Générer le CV et la lettre pour {len(cles)} "
@@ -301,7 +334,7 @@ class App:
         resultat = generate.generer(offre_gen, oid, dossier)
         suivi.ajouter(oid, offre_gen, resultat)
         offres_store.maj_offre(
-            cle, statut="cv_genere",
+            cle, avancement="cv_genere",
             cv_pdf=resultat.get("cv_pdf"),
             lettre_pdf=resultat.get("lettre_pdf"),
             lettre_txt=resultat.get("lettre_txt"))

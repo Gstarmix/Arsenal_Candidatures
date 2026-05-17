@@ -2,6 +2,15 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-17] — v0.4.1 — Intérêt et avancement séparés
+
+- Une offre porte désormais deux axes distincts : l'intérêt (intéressé / ignoré)
+  et l'avancement (CV généré / envoyé). Marquer « intéressé » n'efface plus l'état
+  « CV généré », et inversement.
+- La génération ne relance plus un CV déjà existant : si le CV est déjà là, l'app
+  demande confirmation avant de régénérer ; la génération en lot ignore les offres
+  déjà traitées.
+
 ## [2026-05-17] — v0.4.0 — Interface graphique
 
 - Nouvelle application `gui.py` : tableau de bord unique pour voir les offres,
