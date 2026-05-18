@@ -99,9 +99,12 @@ def _libelle_statut(offre: dict, statut: str) -> str:
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.occupe = False
         self.offres_affichees = []
         self.tri = ("score", True)          # (colonne, ordre décroissant)
+        self.scraping = False               # un scrape est en cours
+        self.generation_active = False      # un worker de génération tourne
+        self.file_generation = []           # clés d'offres en attente de CV
+        self.verrou_generation = threading.Lock()
         root.title("Arsenal Candidatures")
         root.geometry("1120x660")
         root.minsize(900, 500)
@@ -270,9 +273,17 @@ class App:
         sel = self._selection()
         multi = len(sel) >= 1
         unique = len(sel) == 1
-        for cle in ("interesse", "ignore", "generer", "envoye"):
-            self.boutons[cle].config(
-                state="normal" if multi and not self.occupe else "disabled")
+        # « Envoyé » : pas pendant une tâche de fond.
+        self.boutons["envoye"].config(
+            state="normal" if multi and not self._occupe() else "disabled")
+        # « Générer » : bloqué seulement pendant un scrape ; pendant une
+        # génération, un nouveau clic ajoute les offres à la file d'attente.
+        self.boutons["generer"].config(
+            state="normal" if multi and not self.scraping else "disabled")
+        # « Intéressé » / « Ignorer » : toujours disponibles sur une sélection,
+        # même pendant une génération (on doit pouvoir changer d'avis).
+        for cle in ("interesse", "ignore"):
+            self.boutons[cle].config(state="normal" if multi else "disabled")
         offre = self._offre_par_cle(sel[0]) if unique else None
         for champ in ("url", "cv_pdf", "lettre_pdf", "lettre_txt"):
             ok = bool(offre and offre.get(champ))
@@ -349,20 +360,28 @@ class App:
             self.barre.config(text="Note enregistrée.")
 
     # ------------------------------------------------------- tâches de fond
-    def _set_occupe(self, occupe: bool) -> None:
-        self.occupe = occupe
-        etat = "disabled" if occupe else "normal"
-        for bouton in (self.btn_ft, self.btn_agro, self.btn_lot):
+    def _occupe(self) -> bool:
+        """Vrai si une tâche de fond (scrape ou génération) est en cours."""
+        return self.scraping or self.generation_active
+
+    def _maj_boutons_lourds(self) -> None:
+        """Met à jour les boutons des tâches lourdes selon l'état courant."""
+        etat = "disabled" if self._occupe() else "normal"
+        for bouton in (self.btn_ft, self.btn_agro):
             bouton.config(state=etat)
+        # Génération en lot : possible tant qu'on ne scrape pas (elle s'ajoute
+        # à la file d'attente si une génération tourne déjà).
+        self.btn_lot.config(state="disabled" if self.scraping else "normal")
         self._sur_selection()
 
     def _async(self, message: str) -> None:
         self.root.after(0, lambda: self.barre.config(text=message))
 
     def _lancer_scraper(self, source: str) -> None:
-        if self.occupe:
+        if self._occupe():
             return
-        self._set_occupe(True)
+        self.scraping = True
+        self._maj_boutons_lourds()
         self.barre.config(text=f"Scraping ({source}) en cours...")
 
         def tache():
@@ -372,9 +391,14 @@ class App:
             except Exception as e:                    # noqa: BLE001
                 log.error("Scraper échoué : %s", e)
                 self._async(f"Échec du scraping : {e}")
-            self.root.after(0, self._fin_tache)
+            self.root.after(0, self._fin_scraper)
 
         threading.Thread(target=tache, daemon=True).start()
+
+    def _fin_scraper(self) -> None:
+        self.scraping = False
+        self._maj_boutons_lourds()
+        self.rafraichir()
 
     def _generer_selection(self) -> None:
         sel = self._selection()
@@ -414,28 +438,53 @@ class App:
             self._lancer_generation(cles)
 
     def _lancer_generation(self, cles: list) -> None:
-        if self.occupe or not cles:
+        """Ajoute des offres à la file de génération et démarre le worker s'il
+        ne tourne pas déjà. On peut ainsi empiler des générations sans attendre
+        que la précédente soit finie."""
+        if not cles or self.scraping:
             return
-        self._set_occupe(True)
+        with self.verrou_generation:
+            for cle in cles:
+                if cle not in self.file_generation:
+                    self.file_generation.append(cle)
+            attente = len(self.file_generation)
+            demarrer = not self.generation_active
+            if demarrer:
+                self.generation_active = True
+        self._maj_boutons_lourds()
+        if demarrer:
+            threading.Thread(target=self._worker_generation,
+                             daemon=True).start()
+        else:
+            self._async(f"Ajouté à la file de génération "
+                        f"({attente} offre(s) en attente).")
 
-        def tache():
-            total = len(cles)
-            for i, cle in enumerate(cles, 1):
-                offre = self._offre_par_cle(cle)
-                if not offre:
-                    continue
-                self._async(f"Génération {i}/{total} : "
-                            f"{offre.get('titre', '')[:55]}...")
-                try:
-                    self._generer_une(cle, offre)
-                except Exception as e:                # noqa: BLE001
-                    log.error("Génération échouée (%s) : %s", cle, e)
-                    self._async(f"Échec sur une offre : {e}")
-            suivi.generer_tableau_de_bord()
-            self._async(f"Génération terminée ({total} offre(s)).")
-            self.root.after(0, self._fin_tache)
-
-        threading.Thread(target=tache, daemon=True).start()
+    def _worker_generation(self) -> None:
+        """Vide la file de génération, une offre à la fois. Les offres ajoutées
+        en cours de route sont prises en charge sans relancer de worker."""
+        traite = 0
+        while True:
+            with self.verrou_generation:
+                if not self.file_generation:
+                    self.generation_active = False
+                    break
+                cle = self.file_generation.pop(0)
+                restant = len(self.file_generation)
+            offre = self._offre_par_cle(cle)
+            if not offre:
+                continue
+            traite += 1
+            suffixe = f" ({restant} en attente)" if restant else ""
+            self._async(f"Génération : "
+                        f"{offre.get('titre', '')[:50]}...{suffixe}")
+            try:
+                self._generer_une(cle, offre)
+            except Exception as e:                    # noqa: BLE001
+                log.error("Génération échouée (%s) : %s", cle, e)
+                self._async(f"Échec sur une offre : {e}")
+        suivi.generer_tableau_de_bord()
+        self._async(f"Génération terminée ({traite} offre(s)).")
+        self.root.after(0, self._fin_generation)
 
     def _generer_une(self, cle: str, offre: dict) -> None:
         texte = scraper.charger_texte_offre(offre.get("url", ""))
@@ -461,8 +510,22 @@ class App:
             lettre_pdf=resultat.get("lettre_pdf"),
             lettre_txt=resultat.get("lettre_txt"))
 
-    def _fin_tache(self) -> None:
-        self._set_occupe(False)
+        # L'utilisateur a pu cliquer « Ignorer » pendant la génération : dans ce
+        # cas, le CV tout juste produit est archivé aussitôt, comme s'il avait
+        # ignoré une offre déjà générée.
+        a_jour = self._offre_par_cle(cle)
+        if a_jour and a_jour.get("interet") == "ignore" \
+                and not a_jour.get("archive"):
+            try:
+                offres_store.maj_offre(cle, **archivage.archiver(a_jour))
+                self._async("Offre ignorée pendant la génération, CV archivé : "
+                            f"{offre.get('titre', '')[:45]}")
+            except OSError as e:                      # noqa: BLE001
+                log.error("Archivage post-génération impossible (%s) : %s",
+                          cle, e)
+
+    def _fin_generation(self) -> None:
+        self._maj_boutons_lourds()
         self.rafraichir()
 
 

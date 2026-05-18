@@ -2,6 +2,16 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-18] — v0.5.1 — File d'attente de génération
+
+- Les boutons « Intéressé » et « Ignorer » restent cliquables pendant qu'une
+  génération tourne : on peut changer d'avis sur une offre en cours de
+  traitement. Si une offre est ignorée alors que son CV est en train d'être
+  généré, ce CV est archivé automatiquement dès qu'il est prêt.
+- La génération fonctionne désormais par file d'attente : on peut lancer la
+  génération d'autres offres sans attendre la fin de la précédente. Les offres
+  s'empilent et sont traitées l'une après l'autre par un seul worker.
+
 ## [2026-05-18] — v0.5.0 — CV ciblés, horodatages et archivage
 
 - Génération plus ciblée : le générateur analyse le secteur, les tâches et le
