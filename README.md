@@ -38,7 +38,7 @@ Arsenal_Candidatures/
 ├── scripts/           Code Python (scraper, génération, suivi, magasin d'offres)
 ├── extension/         Extension Chrome/Edge de capture d'offres
 ├── _logs/             Journaux horodatés
-├── _archives/         Anciennes versions
+├── _archives/         Anciennes versions ; CV et lettres des offres ignorées
 ├── gui.py                     Interface graphique (application principale)
 ├── run_candidatures.py        Orchestrateur en ligne de commande
 ├── start_gui.vbs              Lanceur de l'interface graphique (double-clic)
@@ -52,12 +52,17 @@ Arsenal_Candidatures/
    lagrorecrute et remplit le magasin d'offres `datas/offres.json`. On peut aussi
    capturer une offre précise avec l'extension navigateur.
 2. **Tri** — Dans l'interface (`gui.py`), toutes les offres s'affichent dans un
-   tableau ; on marque celles qui intéressent, on ignore les autres.
-3. **Génération** — Pour une offre retenue, l'outil appelle `claude --print` avec le
-   profil et l'offre, produit un CV et une lettre ciblés (PDF + texte) et les compile.
+   tableau triable (clic sur un en-tête de colonne) ; on marque celles qui
+   intéressent, on ignore les autres. Ignorer une offre dont le CV est déjà
+   généré archive ce CV et sa lettre ; remettre l'offre en « intéressé » les
+   restaure.
+3. **Génération** — Pour une offre retenue, l'outil appelle `claude --print` avec
+   le profil et l'offre, produit un CV et une lettre ciblés sur le secteur et le
+   vocabulaire de l'annonce (PDF + texte) et les compile.
 4. **Suivi** — L'offre passe au statut « CV généré », puis « Envoyé » une fois la
-   candidature faite. `datas/suivi_candidatures.json` garde les dates et les rappels
-   de relance (J+7).
+   candidature faite ; la date et l'heure de chaque étape sont affichées dans le
+   tableau. `datas/suivi_candidatures.json` garde les dates et les rappels de
+   relance (J+7).
 5. **Tableau de bord** — `_logs/tableau_de_bord.md` liste les candidatures en cours,
    à relancer aujourd'hui, et sans réponse depuis trop longtemps.
 

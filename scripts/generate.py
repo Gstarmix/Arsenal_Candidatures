@@ -1,9 +1,12 @@
 """Génération d'un CV et d'une lettre de motivation ciblés pour une offre.
 
 Sécurité d'intégrité : claude ne reçoit que le profil + l'offre, et ne renvoie
-qu'un *plan* (ordre, accroche, paragraphes). Les expériences et formations du CV
-sont rendues par Python directement depuis profil_gaylord.json — claude ne peut
-donc pas inventer une expérience.
+qu'un *plan* (ordre, accroche, paragraphes, reformulations). Le poste, l'employeur
+et les dates de chaque expérience, ainsi que les formations, sont rendus par
+Python directement depuis profil_gaylord.json : claude ne peut donc pas inventer
+ni modifier une expérience. Il peut seulement reformuler le texte de description
+(champ "details"), à condition de n'y mettre que des faits déjà présents dans
+l'original.
 """
 import json
 import os
@@ -70,7 +73,7 @@ def _prompt(profil: dict, offre: dict) -> str:
     offre_min = {k: offre.get(k) for k in (
         "titre_offre", "entreprise", "lieu", "type_contrat",
         "description_structuree", "texte_page")}
-    return f"""Tu prépares une candidature. Réponds en français.
+    return f"""Tu prépares une candidature CIBLÉE. Réponds en français.
 
 PROFIL DU CANDIDAT (source de vérité) :
 {json.dumps(profil, ensure_ascii=False, indent=2)}
@@ -78,10 +81,37 @@ PROFIL DU CANDIDAT (source de vérité) :
 OFFRE D'EMPLOI VISÉE :
 {json.dumps(offre_min, ensure_ascii=False, indent=2)}
 
-RÈGLE ABSOLUE : utilise UNIQUEMENT des faits présents dans le PROFIL. N'invente
-jamais une expérience, une compétence, une date ou un diplôme. Tu peux reformuler
-et choisir quoi mettre en avant ; jamais inventer. La lettre doit rester sobre,
-concrète et honnête.
+RÈGLE ABSOLUE D'INTÉGRITÉ : utilise UNIQUEMENT des faits présents dans le
+PROFIL. N'invente jamais une expérience, un employeur, une compétence, une
+date, un diplôme ni un chiffre. En cas de doute, omets. Le résultat doit être
+défendable mot pour mot en entretien. Cette règle prime sur le ciblage : on ne
+fabrique pas un fait pour coller à l'offre, on choisit et on reformule les vrais.
+
+CIBLAGE (objectif principal) : la candidature ne doit PAS être générique. Avant
+de rédiger, analyse le texte de l'offre et repère :
+  - l'entreprise ou l'agence, et son secteur d'activité réel ;
+  - les tâches concrètes du poste, ce qu'on fera vraiment au quotidien ;
+  - les outils, l'environnement et les contraintes cités (cadences, froid,
+    port de charges, normes d'hygiène, travail en équipe, horaires postés...) ;
+  - le vocabulaire métier exact employé dans l'annonce.
+Ensuite, RELIE le profil réel de Gaylord à ces éléments :
+  - reprends le vocabulaire de l'offre pour décrire ce qu'il a réellement fait
+    (une même tâche se nomme de façon générique ou avec les mots du métier visé) ;
+  - mets en avant l'expérience, la formation ou la qualité du profil qui
+    répond le plus directement à un besoin nommé dans l'offre ;
+  - cite au moins un élément concret de l'offre (secteur, type de produit,
+    contrainte, mission) dans l'accroche ET dans la lettre, pour montrer que la
+    candidature a été pensée pour CE poste précis et non recopiée.
+
+REFORMULATION DES EXPÉRIENCES : pour chaque expérience que tu mets en avant, tu
+peux réécrire son champ "details" afin de reprendre le vocabulaire de l'offre,
+via le champ "experiences_reformulees" (clé = indice de l'expérience SOUS FORME
+DE TEXTE, valeur = nouveau "details"). RÈGLE STRICTE : c'est une reformulation,
+pas un ajout. Chaque fait de la version reformulée doit déjà figurer dans le
+"details" d'origine de cette expérience. N'ajoute aucune tâche, aucun outil,
+aucun logiciel, aucun chiffre, aucune responsabilité ni aucun résultat absent de
+l'original. Le poste, l'employeur et les dates ne sont jamais modifiables. Si une
+expérience n'a pas besoin d'être reformulée, ne mets pas sa clé.
 
 STYLE : rédige dans un français fluide et soigné, en reliant les idées par des
 connecteurs logiques (ainsi, par ailleurs, en effet, de plus, c'est pourquoi,
@@ -93,12 +123,13 @@ d'apostrophes courbes, pas de points de suspension unicode.
 Réponds UNIQUEMENT par un objet JSON valide (aucun autre texte, pas de balises de
 code), de cette forme exacte :
 {{
-  "titre_cv": "intitulé court du poste visé, adapté à l'offre",
-  "accroche": "2 phrases d'accroche personnalisées pour cette offre",
-  "ordre_experiences": [indices des expériences du profil, plus pertinentes d'abord],
-  "competences_cles": ["4 à 6 compétences issues du profil, pertinentes pour l'offre"],
-  "lettre_objet": "objet de la lettre de motivation",
-  "lettre_paragraphes": ["paragraphe 1", "paragraphe 2", "paragraphe 3"]
+  "titre_cv": "intitulé court repris du poste réel de l'offre",
+  "accroche": "2 phrases personnalisées citant le secteur ou la mission de l'offre et reliées à un fait réel du profil",
+  "ordre_experiences": [indices des expériences du profil, la plus pertinente pour cette offre d'abord],
+  "experiences_reformulees": {{"0": "details de l'expérience 0 reformulé avec le vocabulaire de l'offre, sans aucun fait nouveau"}},
+  "competences_cles": ["4 à 6 compétences RÉELLES du profil, formulées avec le vocabulaire de l'offre"],
+  "lettre_objet": "objet de la lettre de motivation, reprenant l'intitulé du poste",
+  "lettre_paragraphes": ["p1 : pourquoi ce poste et ce secteur précisément", "p2 : ce que le profil réel apporte aux besoins nommés dans l'offre", "p3 : disponibilité et formule de fin"]
 }}
 Les indices de "ordre_experiences" sont les positions dans profil["experiences"]
 (0 = la première). N'inclus que des indices valides."""
@@ -148,8 +179,12 @@ def _reformuler_sans_tiret(plan: dict) -> dict:
     return plan
 
 
-def _bloc_experiences(profil: dict, ordre) -> str:
+def _bloc_experiences(profil: dict, ordre, reformulations=None) -> str:
+    """Rend les expériences. Le poste, l'employeur et les dates viennent
+    toujours du profil ; seul le texte de description peut avoir été reformulé
+    par claude pour coller au vocabulaire de l'offre."""
     exps = profil.get("experiences", [])
+    reform = reformulations if isinstance(reformulations, dict) else {}
     if not isinstance(ordre, list) or not ordre:
         ordre = list(range(len(exps)))
     lignes, vus = [], set()
@@ -158,9 +193,10 @@ def _bloc_experiences(profil: dict, ordre) -> str:
             continue
         vus.add(i)
         e = exps[i]
+        details = reform.get(str(i)) or reform.get(i) or e.get("details")
         lignes.append(r"\cventry{%s}{%s}{%s}{%s}" % (
             tex(e.get("poste")), tex(e.get("structure")),
-            tex(e.get("periode")), tex(e.get("details"))))
+            tex(e.get("periode")), tex(details)))
     return "\n".join(lignes)
 
 
@@ -207,7 +243,8 @@ def _rendre_cv(profil: dict, plan: dict) -> str:
         "QUALITES": _puces(profil.get("qualites", [])),
         "LANGUES": _puces(langues),
         "ACCROCHE": tex(plan.get("accroche", "")),
-        "EXPERIENCES": _bloc_experiences(profil, plan.get("ordre_experiences")),
+        "EXPERIENCES": _bloc_experiences(profil, plan.get("ordre_experiences"),
+                                         plan.get("experiences_reformulees")),
         "FORMATIONS": _bloc_formations(profil),
     })
 

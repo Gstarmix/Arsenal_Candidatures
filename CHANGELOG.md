@@ -2,6 +2,25 @@
 
 Format : [date] — version — changements.
 
+## [2026-05-18] — v0.5.0 — CV ciblés, horodatages et archivage
+
+- Génération plus ciblée : le générateur analyse le secteur, les tâches et le
+  vocabulaire de chaque offre, et peut reformuler la description des expériences
+  avec les mots de l'annonce. La règle d'intégrité reste entière : aucun fait
+  inventé, le poste, l'employeur et les dates d'une expérience ne sont jamais
+  modifiés (ils restent rendus depuis le profil).
+- Interface : la colonne « Statut » affiche la date et l'heure de l'événement
+  (offre marquée intéressé/ignoré, CV généré, candidature envoyée). Les éléments
+  antérieurs restent datés au mieux : date de modification du PDF pour les CV,
+  date d'ajout de l'offre pour les marquages intéressé/ignoré.
+- Interface : clic sur un en-tête de colonne pour trier le tableau (statut et
+  date, titre, entreprise, score...) ; un nouveau clic inverse l'ordre.
+- Ignorer une offre dont le CV est déjà généré archive automatiquement le CV et
+  la lettre dans `_archives/candidatures_ignorees/` ; repasser l'offre en
+  « intéressé » les restaure à leur emplacement d'origine.
+- `scripts/regen.py` : régénère les candidatures déjà présentes dans `01_offres/`
+  après un ajustement du générateur, sans repasser par l'inbox.
+
 ## [2026-05-17] — v0.4.3 — Classement par type de contrat
 
 - Le score privilégie les contrats adaptés à un job d'été : saisonnier et intérim

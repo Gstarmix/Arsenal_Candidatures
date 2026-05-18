@@ -15,6 +15,7 @@ import os
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
@@ -22,7 +23,8 @@ from tkinter import ttk, messagebox
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from scripts import offres_store, scraper, generate, ingest, suivi  # noqa: E402
+from scripts import (offres_store, scraper, generate, ingest, suivi,  # noqa: E402
+                     archivage)
 from scripts.offres_store import LIBELLES, STATUTS, statut_derive    # noqa: E402
 from scripts.logger_setup import get_logger                         # noqa: E402
 
@@ -37,11 +39,69 @@ COULEURS = {
 }
 
 
+def _fmt_horodatage(iso: str) -> str:
+    """Convertit un horodatage stocké en JJ/MM/AA HH:MM.
+
+    Les anciennes valeurs sans heure restent acceptées (affichées sans heure).
+    """
+    if not iso:
+        return ""
+    for entree, sortie in (("%Y-%m-%d %H:%M", "%d/%m/%y %H:%M"),
+                           ("%Y-%m-%d", "%d/%m/%y")):
+        try:
+            return datetime.strptime(iso, entree).strftime(sortie)
+        except ValueError:
+            continue
+    return ""
+
+
+def _horodatage_brut(offre: dict, statut: str) -> str:
+    """Horodatage ISO de l'événement correspondant au statut, '' si inconnu.
+
+    Le format reste triable lexicalement (AAAA-MM-JJ [HH:MM]) : la fonction sert
+    au tri du tableau et, une fois passée dans _fmt_horodatage, à l'affichage.
+
+    - CV généré / envoyé : le champ enregistré s'il a l'heure, sinon la date de
+      modification du PDF (vraie date ET heure de génération), ce qui rend
+      l'heure visible même pour les CV produits avant cette fonctionnalité.
+    - Intéressé / ignoré : le champ `interet_le` du clic ; à défaut (offre
+      marquée avant cette fonctionnalité), la date d'ajout de l'offre, qui en
+      donne un repère approximatif, sans heure.
+    """
+    if statut == "envoye" and offre.get("envoye_le"):
+        return offre["envoye_le"]
+    if statut in ("cv_genere", "envoye"):
+        iso = offre.get("cv_genere_le")
+        if iso and len(iso) > 10:             # "%Y-%m-%d" fait 10 caractères
+            return iso
+        pdf = offre.get("cv_pdf")
+        if pdf and os.path.exists(pdf):
+            try:
+                return datetime.fromtimestamp(
+                    os.path.getmtime(pdf)).strftime("%Y-%m-%d %H:%M")
+            except OSError:
+                pass
+        return iso or ""
+    if statut in ("interesse", "ignore"):
+        return offre.get("interet_le") or offre.get("date_ajout") or ""
+    return ""
+
+
+def _libelle_statut(offre: dict, statut: str) -> str:
+    """Libellé du statut, complété de la date et l'heure de l'événement."""
+    libelle = LIBELLES.get(statut, statut)
+    horodatage = _fmt_horodatage(_horodatage_brut(offre, statut))
+    if horodatage:
+        libelle = f"{libelle} ({horodatage})"
+    return libelle
+
+
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.occupe = False
         self.offres_affichees = []
+        self.tri = ("score", True)          # (colonne, ordre décroissant)
         root.title("Arsenal Candidatures")
         root.geometry("1120x660")
         root.minsize(900, 500)
@@ -70,15 +130,17 @@ class App:
 
         cadre = ttk.Frame(self.root)
         cadre.pack(fill="both", expand=True, padx=8)
-        cols = ("statut", "titre", "entreprise", "lieu", "contrat", "score")
-        largeurs = {"statut": 90, "titre": 370, "entreprise": 180,
+        self.cols = ("statut", "titre", "entreprise", "lieu", "contrat", "score")
+        largeurs = {"statut": 195, "titre": 285, "entreprise": 180,
                     "lieu": 150, "contrat": 140, "score": 55}
-        entetes = {"statut": "Statut", "titre": "Titre", "entreprise": "Entreprise",
-                   "lieu": "Lieu", "contrat": "Contrat", "score": "Score"}
-        self.tree = ttk.Treeview(cadre, columns=cols, show="headings",
+        self.entetes = {"statut": "Statut", "titre": "Titre",
+                        "entreprise": "Entreprise", "lieu": "Lieu",
+                        "contrat": "Contrat", "score": "Score"}
+        self.tree = ttk.Treeview(cadre, columns=self.cols, show="headings",
                                  selectmode="extended")
-        for c in cols:
-            self.tree.heading(c, text=entetes[c])
+        for c in self.cols:
+            self.tree.heading(c, text=self.entetes[c],
+                              command=lambda col=c: self._trier(col))
             self.tree.column(c, width=largeurs[c],
                              anchor="center" if c == "score" else "w")
         sb = ttk.Scrollbar(cadre, orient="vertical", command=self.tree.yview)
@@ -137,7 +199,10 @@ class App:
         self.offres_affichees = [o for o in toutes
                                  if statut_filtre is None
                                  or statut_derive(o) == statut_filtre]
-        self.offres_affichees.sort(key=lambda o: o.get("score", 0), reverse=True)
+        col, reverse = self.tri
+        self.offres_affichees.sort(key=lambda o: self._cle_tri(o, col),
+                                   reverse=reverse)
+        self._maj_entetes()
 
         self.tree.delete(*self.tree.get_children())
         for offre in self.offres_affichees:
@@ -146,7 +211,7 @@ class App:
                 continue
             statut = statut_derive(offre)
             self.tree.insert("", "end", iid=cle, tags=(statut,), values=(
-                LIBELLES.get(statut, statut),
+                _libelle_statut(offre, statut),
                 offre.get("titre", ""),
                 offre.get("entreprise", ""),
                 offre.get("lieu", ""),
@@ -160,6 +225,36 @@ class App:
         self.lbl_compte.config(text=f"{len(toutes)} offres   |   " + "   ".join(
             f"{LIBELLES[s]}: {counts[s]}" for s in STATUTS))
         self._sur_selection()
+
+    # ------------------------------------------------------------------ tri
+    def _cle_tri(self, offre: dict, col: str):
+        """Clé de tri d'une offre pour la colonne demandée."""
+        if col == "score":
+            return offre.get("score", 0) or 0
+        if col == "statut":
+            # Tri par date et heure de l'événement (marqué, CV généré, envoyé).
+            return _horodatage_brut(offre, statut_derive(offre))
+        return str(offre.get(col, "") or "").lower()
+
+    def _trier(self, col: str) -> None:
+        """Clic sur un en-tête : trie par cette colonne, inverse si déjà active."""
+        actuel, reverse = self.tri
+        if col == actuel:
+            reverse = not reverse
+        else:
+            # Premier clic : score et date du plus récent/haut au plus bas.
+            reverse = col in ("score", "statut")
+        self.tri = (col, reverse)
+        self.rafraichir()
+
+    def _maj_entetes(self) -> None:
+        """Affiche une flèche sur l'en-tête de la colonne de tri active."""
+        col_actif, reverse = self.tri
+        for c in self.cols:
+            texte = self.entetes[c]
+            if c == col_actif:
+                texte += "  ▼" if reverse else "  ▲"
+            self.tree.heading(c, text=texte)
 
     def _offre_par_cle(self, cle: str):
         for offre in offres_store.charger().get("offres", []):
@@ -194,14 +289,40 @@ class App:
 
     # --------------------------------------------------------------- actions
     def _definir_interet(self, valeur: str) -> None:
+        horodatage = datetime.now().strftime("%Y-%m-%d %H:%M")
+        archives = restaures = 0
         for cle in self._selection():
-            offres_store.maj_offre(cle, interet=valeur)
+            offre = self._offre_par_cle(cle)
+            champs = {"interet": valeur, "interet_le": horodatage}
+            try:
+                if (offre and valeur == "ignore" and offre.get("cv_pdf")
+                        and not offre.get("archive")):
+                    champs.update(archivage.archiver(offre))
+                    archives += 1
+                elif offre and valeur == "interesse" and offre.get("archive"):
+                    champs.update(archivage.restaurer(offre))
+                    restaures += 1
+            except OSError as e:
+                log.error("Archivage/restauration impossible (%s) : %s", cle, e)
+                messagebox.showerror(
+                    "Déplacement impossible",
+                    "Impossible de déplacer les fichiers. Le CV ou la lettre "
+                    f"est peut-être ouvert dans un autre programme.\n\n{e}")
+            offres_store.maj_offre(cle, **champs)
         self.rafraichir()
-        self.barre.config(text=f"Intérêt mis à jour : {LIBELLES.get(valeur, valeur)}.")
+        message = f"Intérêt mis à jour : {LIBELLES.get(valeur, valeur)}."
+        if archives:
+            message += f" {archives} CV archivé(s)."
+        if restaures:
+            message += f" {restaures} CV restauré(s)."
+        self.barre.config(text=message)
 
     def _definir_avancement(self, valeur: str) -> None:
+        champs = {"avancement": valeur}
+        if valeur == "envoye":
+            champs["envoye_le"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         for cle in self._selection():
-            offres_store.maj_offre(cle, avancement=valeur)
+            offres_store.maj_offre(cle, **champs)
         self.rafraichir()
         self.barre.config(text="Avancement mis à jour.")
 
@@ -335,6 +456,7 @@ class App:
         suivi.ajouter(oid, offre_gen, resultat)
         offres_store.maj_offre(
             cle, avancement="cv_genere",
+            cv_genere_le=datetime.now().strftime("%Y-%m-%d %H:%M"),
             cv_pdf=resultat.get("cv_pdf"),
             lettre_pdf=resultat.get("lettre_pdf"),
             lettre_txt=resultat.get("lettre_txt"))
